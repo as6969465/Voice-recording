@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>語音會議紀錄</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg">
+<meta name="theme-color" content="#2563eb">
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--fg:#1d2330;--mut:#6b7280;--pri:#2563eb;--red:#dc2626;--bd:#e5e7eb}
+@media (prefers-color-scheme:dark){:root{--bg:#111318;--card:#1b1e25;--fg:#e8eaf0;--mut:#9aa1ad;--pri:#60a5fa;--red:#f87171;--bd:#2b2f38}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.6 system-ui,"Microsoft JhengHei",sans-serif}
+main{max-width:1100px;margin:0 auto;padding:16px;display:grid;gap:16px;grid-template-columns:1fr 1fr}
+@media (max-width:800px){main{grid-template-columns:1fr}}
+h1{grid-column:1/-1;margin:0;font-size:22px}
+section{background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:16px}
+label{display:block;font-size:13px;color:var(--mut);margin-top:8px}
+input,textarea,select{width:100%;padding:8px;border:1px solid var(--bd);border-radius:6px;background:var(--bg);color:var(--fg);font:inherit}
+textarea{min-height:320px;resize:vertical}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+button{padding:8px 14px;border:0;border-radius:6px;background:var(--pri);color:#fff;font:inherit;cursor:pointer}
+button.sec{background:transparent;color:var(--fg);border:1px solid var(--bd)}
+button.rec{background:var(--red)}
+button:disabled{opacity:.5;cursor:default}
+#status{color:var(--mut);font-size:13px;margin-top:8px}
+#interim{color:var(--mut);font-style:italic;min-height:1.6em}
+</style>
+</head>
+<body>
+<main>
+<h1>🎙️ 語音轉會議紀錄</h1>
+
+<section>
+  <label>會議主題</label><input id="title" placeholder="例：Q4 專案進度會議">
+  <label>與會人員（逗號分隔）</label><input id="people" placeholder="王小明, 陳大華">
+  <label>辨識語言</label>
+  <select id="lang"><option value="zh-TW">中文（台灣）</option><option value="en-US">English</option><option value="ja-JP">日本語</option></select>
+  <div class="row">
+    <button id="btnRec">開始錄音</button>
+    <button id="btnClear" class="sec">清除逐字稿</button>
+  </div>
+  <div id="status">需使用 Chrome 或 Edge，並允許麥克風權限。</div>
+  <label>逐字稿（可手動編輯或貼上）</label>
+  <div id="interim"></div>
+  <textarea id="transcript"></textarea>
+</section>
+
+<section>
+  <div class="row" style="margin-top:0">
+    <button id="btnAI">✨ AI 重點整理</button>
+    <button id="btnGen" class="sec">關鍵字整理</button>
+    <button id="btnCopy" class="sec">複製</button>
+    <button id="btnDl" class="sec">下載 .md</button>
+  </div>
+  <label>會議紀錄</label>
+  <textarea id="minutes" style="min-height:520px"></textarea>
+</section>
+</main>
+
+<script>
+if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js');
+
+const $ = id => document.getElementById(id);
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+let rec = null, recording = false, startTime = null;
+
+const stamp = () => {
+  const s = Math.floor((Date.now() - startTime) / 1000);
+  return `[${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}]`;
+};
+
+if (!SR) {
+  $('btnRec').disabled = true;
+  $('status').textContent = '此瀏覽器不支援語音辨識，請改用 Chrome / Edge，或直接貼上逐字稿。';
+}
+
+function startRec() {
+  rec = new SR();
+  rec.lang = $('lang').value;
+  rec.continuous = true;
+  rec.interimResults = true;
+  rec.onresult = e => {
+    let interim = '';
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      const t = e.results[i][0].transcript.trim();
+      if (e.results[i].isFinal) { if (t) $('transcript').value += `${stamp()} ${t}\n`; }
+      else interim += t;
+    }
+    $('interim').textContent = interim;
+    $('transcript').scrollTop = $('transcript').scrollHeight;
+  };
+  rec.onerror = e => { $('status').textContent = '錯誤：' + e.error; };
+  // 瀏覽器會在靜音一段時間後自動停止，錄音中就自動重啟
+  rec.onend = () => { if (recording) rec.start(); };
+  rec.start();
+}
+
+$('btnRec').onclick = () => {
+  if (!recording) {
+    recording = true;
+    startTime = startTime || Date.now();
+    startRec();
+    $('btnRec').textContent = '停止錄音'; $('btnRec').classList.add('rec');
+    $('status').textContent = '● 錄音中…';
+  } else {
+    recording = false; rec && rec.stop();
+    $('btnRec').textContent = '開始錄音'; $('btnRec').classList.remove('rec');
+    $('status').textContent = '已停止。';
+    $('interim').textContent = '';
+  }
+};
+
+$('btnClear').onclick = () => {
+  if (confirm('確定清除逐字稿？')) { $('transcript').value = ''; startTime = recording ? Date.now() : null; }
+};
+
+const RULES = {
+  decisions: /(決定|決議|確認|同意|定案|通過|就這樣|拍板)/,
+  actions: /(負責|請.{0,6}(處理|準備|完成|確認|提供|安排|追蹤)|待辦|要做|跟進|追蹤|截止|之前完成|下週|明天|deadline|action item)/i,
+  issues: /(問題|風險|困難|卡住|延遲|來不及|擔心|不確定)/,
+};
+
+function generate() {
+  const lines = $('transcript').value.split('\n').map(l => l.trim()).filter(Boolean);
+  const text = l => l.replace(/^\[\d+:\d+\]\s*/, '');
+  const pick = re => lines.filter(l => re.test(text(l))).map(l => `- ${text(l)}`);
+  const people = $('people').value.split(/[,，、]/).map(s => s.trim()).filter(Boolean);
+  const now = new Date();
+
+  const sec = (t, arr, empty = '- （無）') => `## ${t}\n${arr.length ? arr.join('\n') : empty}\n`;
+  const actions = pick(RULES.actions).map(a => {
+    const who = people.find(p => a.includes(p));
+    return who ? `- [ ] **${who}**：${a.slice(2)}` : `- [ ] ${a.slice(2)}`;
+  });
+
+  const md = [
+    `# ${$('title').value || '會議紀錄'}`,
+    '',
+    `- **日期**：${now.toLocaleDateString('zh-TW')} ${now.toLocaleTimeString('zh-TW', {hour:'2-digit', minute:'2-digit'})}`,
+    `- **與會人員**：${people.join('、') || '（未填）'}`,
+    `- **逐字稿句數**：${lines.length}`,
+    '',
+    sec('決議事項', pick(RULES.decisions)),
+    sec('待辦事項', actions),
+    sec('問題與風險', pick(RULES.issues)),
+    '## 完整逐字稿',
+    lines.join('\n') || '（無）',
+  ].join('\n');
+  $('minutes').value = md;
+}
+
+$('btnGen').onclick = generate;
+
+$('btnAI').onclick = async () => {
+  const transcript = $('transcript').value.trim();
+  if (!transcript) { $('status').textContent = '逐字稿是空的。'; return; }
+  const btn = $('btnAI');
+  btn.disabled = true; btn.textContent = '整理中…';
+  try {
+    const r = await fetch('/api/summarize', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ title: $('title').value, people: $('people').value, transcript }),
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || r.status);
+    const now = new Date();
+    $('minutes').value = [
+      `# ${$('title').value || '會議紀錄'}`, '',
+      `- **日期**：${now.toLocaleDateString('zh-TW')}`,
+      `- **與會人員**：${$('people').value || '（未填）'}`, '',
+      j.summary.trim(), '',
+      '## 完整逐字稿', transcript,
+    ].join('\n');
+    $('status').textContent = 'AI 重點整理完成，請核對內容。';
+  } catch (e) {
+    $('status').textContent = `AI 整理失敗（${e.message}），已改用關鍵字整理。`;
+    generate();
+  } finally {
+    btn.disabled = false; btn.textContent = '✨ AI 重點整理';
+  }
+};
+$('btnCopy').onclick = async () => {
+  await navigator.clipboard.writeText($('minutes').value);
+  $('status').textContent = '已複製到剪貼簿。';
+};
+$('btnDl').onclick = () => {
+  if (!$('minutes').value) generate();
+  const blob = new Blob([$('minutes').value], {type: 'text/markdown'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `${$('title').value || '會議紀錄'}_${new Date().toISOString().slice(0,10)}.md`;
+  a.click();
+};
+</script>
+</body>
+</html>
