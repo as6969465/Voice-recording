@@ -1,5 +1,6 @@
 {
   "hosting": {
+    "site": "my-link-center-voice",
     "public": "public",
     "ignore": ["firebase.json", "**/.*"],
     "headers": [
