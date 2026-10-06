@@ -197,22 +197,28 @@ async function geminiSummarize(key, transcript) {
     contents: [{ role: 'user', parts: [{ text: `${meta}\n\n<transcript>\n${transcript}\n</transcript>` }] }],
     generationConfig: { maxOutputTokens: 8192, temperature: 0.3 },
   });
-  // 依序嘗試，模型被下架（404）時自動換下一個
-  const MODELS = ['gemini-flash-latest', 'gemini-2.5-flash', 'gemini-2.0-flash'];
+  // 依序嘗試；模型下架（404）或忙碌（503）時重試並自動換下一個
+  const MODELS = ['gemini-flash-latest', 'gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-2.0-flash'];
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
   let lastErr = '';
   for (const m of MODELS) {
-    let r, j;
-    try {
-      r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent`,
-        { method: 'POST', headers: { 'x-goog-api-key': key, 'content-type': 'application/json' }, body });
-      j = await r.json();
-    } catch (e) {
-      throw new Error('無法連線到 Gemini（請確認網路，或重新整理頁面載入新版）');
+    for (let attempt = 0; attempt < 2; attempt++) {
+      $('status').textContent = `AI 整理中…（${m}${attempt ? '，重試' : ''}）`;
+      let r, j;
+      try {
+        r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent`,
+          { method: 'POST', headers: { 'x-goog-api-key': key, 'content-type': 'application/json' }, body });
+        j = await r.json();
+      } catch (e) {
+        throw new Error('無法連線到 Gemini（請確認網路，或重新整理頁面載入新版）');
+      }
+      const text = j?.candidates?.[0]?.content?.parts?.map(p => p.text || '').join('');
+      if (r.ok && text) return text;
+      lastErr = explainGeminiError(r.status, j);
+      if (r.status === 503 || r.status === 500) { await sleep(2000 * (attempt + 1)); continue; }
+      if (r.status === 404 || r.status === 429) break; // 免費額度依模型分開計算，換下一個
+      throw new Error(lastErr);
     }
-    const text = j?.candidates?.[0]?.content?.parts?.map(p => p.text || '').join('');
-    if (r.ok && text) return text;
-    lastErr = explainGeminiError(r.status, j);
-    if (r.status !== 404) break;
   }
   throw new Error(lastErr);
 }
@@ -222,6 +228,7 @@ function explainGeminiError(status, j) {
   if (/API key not valid|API_KEY_INVALID/i.test(msg)) return '金鑰無效，請按「⚙️ Gemini 金鑰」重新貼上正確金鑰';
   if (/referer|referrer/i.test(msg)) return '金鑰的網站限制擋住了此網址，請在金鑰設定加入 https://my-link-center.web.app/*';
   if (/has not been used|is disabled|SERVICE_DISABLED/i.test(msg)) return '此金鑰所屬專案尚未啟用 Generative Language API';
+  if (status === 503) return 'Gemini 伺服器目前忙碌（已自動重試並切換模型仍失敗），請 1～2 分鐘後再按一次';
   if (status === 429) return '已超過免費額度或請求太頻繁，請稍後再試';
   if (status === 403) return '金鑰沒有權限：' + msg;
   if (j?.candidates?.[0]?.finishReason) return 'AI 未產生內容（' + j.candidates[0].finishReason + '）';
