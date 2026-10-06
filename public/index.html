@@ -192,19 +192,40 @@ const SYSTEM = `你是專業的會議記錄秘書。根據使用者提供的會�
 
 async function geminiSummarize(key, transcript) {
   const meta = `會議主題：${$('title').value || '未填'}\n與會人員：${$('people').value || '未填'}`;
-  const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent', {
-    method: 'POST',
-    headers: { 'x-goog-api-key': key, 'content-type': 'application/json' },
-    body: JSON.stringify({
-      systemInstruction: { parts: [{ text: SYSTEM }] },
-      contents: [{ role: 'user', parts: [{ text: `${meta}\n\n<transcript>\n${transcript}\n</transcript>` }] }],
-      generationConfig: { maxOutputTokens: 8192, temperature: 0.3 },
-    }),
+  const body = JSON.stringify({
+    systemInstruction: { parts: [{ text: SYSTEM }] },
+    contents: [{ role: 'user', parts: [{ text: `${meta}\n\n<transcript>\n${transcript}\n</transcript>` }] }],
+    generationConfig: { maxOutputTokens: 8192, temperature: 0.3 },
   });
-  const j = await r.json();
-  const text = j?.candidates?.[0]?.content?.parts?.map(p => p.text || '').join('');
-  if (!r.ok || !text) throw new Error(j?.error?.message || '無回應');
-  return text;
+  // 依序嘗試，模型被下架（404）時自動換下一個
+  const MODELS = ['gemini-flash-latest', 'gemini-2.5-flash', 'gemini-2.0-flash'];
+  let lastErr = '';
+  for (const m of MODELS) {
+    let r, j;
+    try {
+      r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent`,
+        { method: 'POST', headers: { 'x-goog-api-key': key, 'content-type': 'application/json' }, body });
+      j = await r.json();
+    } catch (e) {
+      throw new Error('無法連線到 Gemini（請確認網路，或重新整理頁面載入新版）');
+    }
+    const text = j?.candidates?.[0]?.content?.parts?.map(p => p.text || '').join('');
+    if (r.ok && text) return text;
+    lastErr = explainGeminiError(r.status, j);
+    if (r.status !== 404) break;
+  }
+  throw new Error(lastErr);
+}
+
+function explainGeminiError(status, j) {
+  const msg = j?.error?.message || '';
+  if (/API key not valid|API_KEY_INVALID/i.test(msg)) return '金鑰無效，請按「⚙️ Gemini 金鑰」重新貼上正確金鑰';
+  if (/referer|referrer/i.test(msg)) return '金鑰的網站限制擋住了此網址，請在金鑰設定加入 https://my-link-center.web.app/*';
+  if (/has not been used|is disabled|SERVICE_DISABLED/i.test(msg)) return '此金鑰所屬專案尚未啟用 Generative Language API';
+  if (status === 429) return '已超過免費額度或請求太頻繁，請稍後再試';
+  if (status === 403) return '金鑰沒有權限：' + msg;
+  if (j?.candidates?.[0]?.finishReason) return 'AI 未產生內容（' + j.candidates[0].finishReason + '）';
+  return `錯誤 ${status}：${msg || '無回應'}`;
 }
 
 $('btnAI').onclick = async () => {
@@ -231,7 +252,7 @@ $('btnAI').onclick = async () => {
   } catch (e) {
     $('status').textContent = `⚠️ AI 整理失敗：${e.message}。下方為關鍵字整理結果（非 AI）。`;
     generate();
-    $('minutes').value = '> ⚠️ AI 整理失敗，以下為關鍵字整理結果\n\n' + $('minutes').value;
+    $('minutes').value = `> ⚠️ AI 整理失敗：${e.message}\n> 以下為關鍵字整理結果\n\n` + $('minutes').value;
   } finally {
     btn.disabled = false; btn.textContent = '✨ AI 重點整理';
   }
