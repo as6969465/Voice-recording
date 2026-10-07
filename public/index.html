@@ -226,7 +226,7 @@ async function geminiSummarize(key, transcript) {
 function explainGeminiError(status, j) {
   const msg = j?.error?.message || '';
   if (/API key not valid|API_KEY_INVALID/i.test(msg)) return '金鑰無效，請按「⚙️ Gemini 金鑰」重新貼上正確金鑰';
-  if (/referer|referrer/i.test(msg)) return '金鑰的網站限制擋住了此網址，請在金鑰設定加入 https://my-link-center.web.app/*';
+  if (/referer|referrer/i.test(msg)) return '金鑰的網站限制擋住了此網址，請在金鑰設定加入 https://reyi001.web.app/*';
   if (/has not been used|is disabled|SERVICE_DISABLED/i.test(msg)) return '此金鑰所屬專案尚未啟用 Generative Language API';
   if (status === 503) return 'Gemini 伺服器目前忙碌（已自動重試並切換模型仍失敗），請 1～2 分鐘後再按一次';
   if (status === 429) return '已超過免費額度或請求太頻繁，請稍後再試';

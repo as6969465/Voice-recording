@@ -16,4 +16,4 @@ jobs:
       - uses: google-github-actions/auth@v2
         with:
           credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-      - run: npx -y firebase-tools@latest deploy --only hosting --project "${{ secrets.FIREBASE_PROJECT_ID }}" --non-interactive
+      - run: npx -y firebase-tools@latest deploy --only hosting --project reyi001 --non-interactive
