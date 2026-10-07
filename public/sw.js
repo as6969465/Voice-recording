@@ -1,4 +1,4 @@
-﻿// 敹怠? App 畾澆惜嚗?隞?舫蝺???隤颲刻??祈澈隞?蝬脰楝嚗?const CACHE = 'minutes-v8';
+﻿// 敹怠? App 畾澆惜嚗?隞?舫蝺???隤颲刻??祈澈隞?蝬脰楝嚗?const CACHE = 'minutes-v9';
 const FILES = ['./', './index.html', './manifest.json', './icon.svg'];
 
 self.addEventListener('install', e => {

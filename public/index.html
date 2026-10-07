@@ -52,6 +52,24 @@ input,select,textarea{font:inherit}
 .flash{position:fixed;left:50%;bottom:150px;transform:translateX(-50%);background:#fff;color:#1d1a2e;padding:6px 14px;border-radius:999px;font-size:13px;opacity:0;transition:opacity .2s;pointer-events:none}
 .flash.on{opacity:1}
 
+/* ===== 專案列表 ===== */
+#vHome{flex-direction:column;background:#fbfaf7;color:#2b2a27}
+.home{max-width:760px;width:100%;margin:0 auto;padding:calc(24px + env(safe-area-inset-top)) 20px 120px}
+.home h1{font-family:Georgia,"Noto Serif TC","PMingLiU",serif;font-size:28px;font-weight:600}
+.home .sub{color:#8a867d;font-size:13px;margin:2px 0 20px}
+.plist{display:flex;flex-direction:column;gap:10px}
+.pcard{display:flex;align-items:center;gap:12px;background:#fff;border:1px solid #eeeae0;border-radius:14px;padding:14px 12px 14px 16px;cursor:pointer}
+.pcard:hover{border-color:#d9d3c4}
+.pcard .pi{flex:1;min-width:0}
+.pcard b{display:block;font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pcard small{color:#8a867d;font-size:12px}
+.pcard .tag{font-size:11px;padding:2px 8px;border-radius:999px;background:#efe9ff;color:#6a4cf0;margin-left:6px}
+.pcard .del{width:36px;height:36px;border-radius:50%;color:#a6a196;flex:none}
+.pcard .del:hover{background:#fde8e8;color:#b42318}
+.hempty{text-align:center;color:#a6a196;padding:48px 0}
+.fab{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(24px + env(safe-area-inset-bottom));background:#2b2a27;color:#fbfaf7;border-radius:999px;padding:14px 26px;font-size:15px;font-weight:600;box-shadow:0 8px 24px rgba(0,0,0,.2)}
+.store-note{font-size:12px;color:#a6a196;text-align:center;margin-top:20px}
+
 /* ===== 設定抽屜 ===== */
 .sheet{position:fixed;inset:0;background:rgba(0,0,0,.5);display:none;align-items:flex-end;justify-content:center;z-index:10}
 .sheet.on{display:flex}
@@ -100,11 +118,23 @@ summary{cursor:pointer;color:#8a867d;font-size:13px;font-family:system-ui,"Micro
 </head>
 <body>
 
+<!-- ========== 專案列表 ========== -->
+<section class="view on" id="vHome">
+  <div class="home">
+    <h1>會議紀錄</h1>
+    <div class="sub">每場會議是一個獨立專案，逐字稿與紀錄自動儲存</div>
+    <div class="plist" id="plist"></div>
+    <div class="store-note">資料儲存在這台裝置的瀏覽器中，換裝置或清除瀏覽資料會遺失，重要紀錄請下載保存。</div>
+  </div>
+  <button class="fab" id="btnNew">＋ 新增會議</button>
+</section>
+
 <!-- ========== 錄音畫面 ========== -->
-<section class="view on" id="vRec">
+<section class="view" id="vRec">
   <div class="rtop">
-    <button class="ico" id="toNotes" title="會議紀錄">☰</button>
+    <button class="ico" id="toHome" title="所有會議">←</button>
     <input id="title" placeholder="輸入會議主題" maxlength="100">
+    <button class="ico" id="toNotes" title="會議紀錄">📄</button>
     <button class="ico" id="openSet" title="設定">⚙</button>
   </div>
   <div class="rmain">
@@ -175,6 +205,7 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.ser
 const $ = id => document.getElementById(id);
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 let rec = null, recording = false, startTime = null, elapsed = 0, tick = null;
+let gotResult = false, noResultTimer = null;
 
 const fmt = s => `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
 const nowSec = () => elapsed + (recording ? Math.floor((Date.now() - startTime) / 1000) : 0);
@@ -182,12 +213,93 @@ const stamp = () => `[${fmt(nowSec())}]`;
 
 // ---------- 畫面切換 ----------
 function show(v) {
+  $('vHome').classList.toggle('on', v === 'home');
   $('vRec').classList.toggle('on', v === 'rec');
   $('vNotes').classList.toggle('on', v === 'notes');
   document.querySelector('meta[name=theme-color]').content = v === 'rec' ? '#0c0b12' : '#fbfaf7';
-  if (v === 'notes') updateMeta(); else renderTr();
+  if (v === 'notes') updateMeta(); else if (v === 'rec') renderTr(); else renderHome();
   scrollTo(0, 0);
 }
+
+// ---------- 專案（每場會議獨立一份，存在 localStorage） ----------
+const P_PREFIX = 'mm_proj_';
+let cur = null, curDoc = { md: '', ai: false }, saveTimer = null;
+const store = {
+  list() {
+    const out = [];
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k.startsWith(P_PREFIX)) try { out.push(JSON.parse(localStorage.getItem(k))); } catch {}
+      }
+    } catch {}
+    return out.sort((a, b) => b.updated - a.updated);
+  },
+  put(p) {
+    try { localStorage.setItem(P_PREFIX + p.id, JSON.stringify(p)); return true; }
+    catch { return false; }
+  },
+  del(id) { try { localStorage.removeItem(P_PREFIX + id); } catch {} },
+};
+
+function renderHome() {
+  const ps = store.list();
+  $('plist').innerHTML = ps.length ? ps.map(p => {
+    const d = new Date(p.created);
+    const lines = (p.transcript || '').split('\n').filter(l => l.trim()).length;
+    return `<div class="pcard" data-id="${esc(p.id)}"><div class="pi"><b>${esc(p.title || '未命名會議')}${p.docAI ? '<span class="tag">✦ 已整理</span>' : ''}</b>
+      <small>${d.toLocaleDateString('zh-TW')} ${d.toLocaleTimeString('zh-TW', {hour:'2-digit', minute:'2-digit'})} · ${lines} 句${p.elapsed ? ' · ' + fmt(p.elapsed) : ''}</small></div>
+      <button class="del" data-del="${esc(p.id)}" title="刪除">🗑</button></div>`;
+  }).join('') : '<div class="hempty">還沒有會議，點下方「＋ 新增會議」開始</div>';
+}
+$('plist').onclick = e => {
+  const del = e.target.closest('[data-del]');
+  if (del) {
+    e.stopPropagation();
+    const p = store.list().find(x => x.id === del.dataset.del);
+    if (p && confirm(`確定刪除「${p.title || '未命名會議'}」？刪除後無法復原。`)) { store.del(p.id); renderHome(); }
+    return;
+  }
+  const card = e.target.closest('.pcard');
+  if (card) openProject(store.list().find(x => x.id === card.dataset.id));
+};
+
+$('btnNew').onclick = () => {
+  const now = Date.now();
+  const p = { id: now.toString(36) + Math.random().toString(36).slice(2, 6), title: '', people: '', lang: 'zh-TW',
+    transcript: '', minutes: '', doc: '', docAI: false, elapsed: 0, created: now, updated: now };
+  store.put(p);
+  openProject(p);
+  $('title').focus();
+};
+
+function openProject(p) {
+  if (!p) return;
+  cur = p;
+  $('title').value = p.title; $('people').value = p.people; $('lang').value = p.lang || 'zh-TW';
+  $('transcript').value = p.transcript; $('minutes').value = p.minutes;
+  elapsed = p.elapsed || 0; $('timer').textContent = fmt(elapsed);
+  $('state').textContent = elapsed ? '已暫停，點按鈕繼續錄音' : '點下方按鈕開始錄音';
+  $('msg').textContent = ''; $('interim').textContent = '';
+  render(p.doc || '', p.docAI);
+  setPill(p.docAI ? '✦ AI 整理完成' : p.doc ? '關鍵字整理（非 AI）' : '尚未整理');
+  show('rec');
+}
+
+function save() {
+  if (!cur) return;
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    Object.assign(cur, { title: $('title').value, people: $('people').value, lang: $('lang').value,
+      transcript: $('transcript').value, minutes: $('minutes').value, doc: curDoc.md, docAI: curDoc.ai,
+      elapsed: nowSec(), updated: Date.now() });
+    if (!store.put(cur)) $('msg').textContent = '⚠️ 儲存空間已滿，請下載紀錄後刪除舊會議。';
+  }, 400);
+}
+['title', 'people', 'lang', 'transcript', 'minutes'].forEach(id => $(id).addEventListener('input', save));
+$('lang').addEventListener('change', save);
+
+$('toHome').onclick = () => { stopRec(); save(); show('home'); };
 $('toNotes').onclick = () => show('notes');
 $('backRec').onclick = () => show('rec');
 $('pasteBtn').onclick = () => { show('notes'); $('trDetails').open = true; $('transcript').focus(); };
@@ -236,7 +348,21 @@ function startRec() {
     }
     $('interim').textContent = interim;
     level = 1;
+    gotResult = true; clearTimeout(noResultTimer);
+    $('state').innerHTML = '<i class="dot"></i>錄音中';
   };
+  // 診斷：逐步顯示麥克風與辨識狀態，方便找出逐字稿沒出現的原因
+  rec.onstart = () => { if (!gotResult) $('state').innerHTML = '<i class="dot"></i>錄音中・等待麥克風…'; };
+  rec.onaudiostart = () => {
+    if (gotResult) return;
+    $('state').innerHTML = '<i class="dot"></i>錄音中・麥克風已啟動，請開始說話';
+    clearTimeout(noResultTimer);
+    noResultTimer = setTimeout(() => {
+      if (recording && !gotResult) $('msg').textContent =
+        '已收音但 12 秒內沒有辨識結果：可能是說話音量太小、選錯辨識語言，或公司網路擋住 Google 語音服務（可改用手機行動網路測試）。';
+    }, 12000);
+  };
+  rec.onspeechstart = () => { if (!gotResult) $('state').innerHTML = '<i class="dot"></i>錄音中・偵測到語音，辨識中…'; };
   rec.onerror = e => {
     const MSG = {
       'not-allowed': '麥克風權限被拒絕：請點網址列左側的 🔒 → 麥克風 → 允許，然後重新整理頁面。',
@@ -254,9 +380,10 @@ function startRec() {
 }
 
 function startAll() {
-  recording = true; startTime = Date.now();
+  recording = true; startTime = Date.now(); gotResult = false;
   $('msg').textContent = '';
-  startRec();
+  try { startRec(); }
+  catch (e) { recording = false; $('msg').textContent = '無法啟動語音辨識：' + e.message; return; }
   tick = setInterval(() => $('timer').textContent = fmt(nowSec()), 500);
   $('btnRec').classList.add('on'); $('btnRec').setAttribute('aria-label', '停止錄音');
   $('btnMark').disabled = false;
@@ -272,6 +399,8 @@ function stopRec() {
   $('btnMark').disabled = true;
   $('state').textContent = elapsed ? '已暫停，點按鈕繼續錄音' : '點下方按鈕開始錄音';
   $('interim').textContent = '';
+  clearTimeout(noResultTimer);
+  save();
 }
 
 $('btnRec').onclick = () => recording ? stopRec() : startAll();
@@ -287,6 +416,7 @@ function renderTr() {
     return `<p${txt.includes('🔖') ? ' class="mark"' : ''}><span class="ts">${esc(ts)}</span><span>${esc(txt)}</span></p>`;
   }).join('') : '<p class="empty">開始錄音後，逐字稿會即時顯示在這裡。</p>';
   if (atBottom) box.scrollTop = box.scrollHeight;
+  save();
 }
 $('transcript').addEventListener('input', renderTr);
 
@@ -324,6 +454,7 @@ function updateMeta() {
 const esc = s => s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const inline = s => esc(s).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/`(.+?)`/g, '<code>$1</code>');
 function render(md, ai = false) {
+  curDoc = { md, ai }; save();
   if (!md.trim()) { $('doc').innerHTML = '<p class="empty">按下方「✦ AI 重點整理」產生會議紀錄。</p>'; return; }
   const out = []; let list = null, table = null;
   const close = () => { if (list) { out.push(`</${list}>`); list = null; } if (table) { out.push('</tbody></table>'); table = null; } };
@@ -463,6 +594,7 @@ async function runAI() {
   } finally { btn.disabled = false; }
 }
 $('btnAI').onclick = runAI;
+renderHome();
 
 $('btnCopy').onclick = async () => {
   try { await navigator.clipboard.writeText($('minutes').value || $('transcript').value); setPill('已複製到剪貼簿'); }
