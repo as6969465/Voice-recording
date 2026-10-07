@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>介面風格提案</title>
+<style>
+*{box-sizing:border-box;margin:0}
+body{font:15px/1.6 system-ui,"Microsoft JhengHei",sans-serif;background:#e9ebef;color:#1d2330}
+.switch{position:sticky;top:0;z-index:9;display:flex;gap:8px;justify-content:center;padding:12px;background:#fff;border-bottom:1px solid #ddd;flex-wrap:wrap}
+.switch button{border:1px solid #ccd;border-radius:999px;padding:8px 16px;background:#fff;font:inherit;cursor:pointer}
+.switch button.on{background:#1d2330;color:#fff;border-color:#1d2330}
+.stage{display:none;padding:24px 16px;justify-content:center;gap:28px;flex-wrap:wrap;align-items:flex-start}
+.stage.on{display:flex}
+.note{max-width:300px;font-size:14px;color:#444}
+.note h2{font-size:20px;margin-bottom:8px}
+.note li{margin:4px 0 4px 18px}
+.phone{width:375px;max-width:100%;height:780px;border-radius:40px;overflow:hidden;box-shadow:0 20px 50px rgba(0,0,0,.18);position:relative;display:flex;flex-direction:column;border:8px solid #111}
+
+/* ---------- A：Otter 風（藍色專業、逐字稿 + 說話者） ---------- */
+.A{background:#f7f9fc;color:#14213d}
+.A .top{background:#fff;padding:18px 18px 12px;border-bottom:1px solid #e6ebf2}
+.A .top small{color:#6b7a90}
+.A .top h3{font-size:18px}
+.A .tabs{display:flex;gap:18px;margin-top:10px;font-size:14px;color:#6b7a90}
+.A .tabs b{color:#1f5eff;border-bottom:2px solid #1f5eff;padding-bottom:6px}
+.A .body{flex:1;overflow:auto;padding:14px 18px}
+.A .line{display:flex;gap:10px;margin-bottom:14px}
+.A .av{width:32px;height:32px;border-radius:50%;color:#fff;display:grid;place-items:center;font-size:13px;flex:none}
+.A .who{font-size:13px;font-weight:600}.A .who span{color:#97a3b6;font-weight:400;margin-left:6px}
+.A .hl{background:#fff3c4;border-radius:3px;padding:0 2px}
+.A .live{color:#97a3b6;font-style:italic}
+.A .bar{background:#fff;border-top:1px solid #e6ebf2;padding:12px 18px 22px;display:flex;align-items:center;gap:12px}
+.A .wave{flex:1;height:28px;display:flex;align-items:center;gap:2px}
+.A .wave i{flex:1;background:#1f5eff;border-radius:2px;opacity:.75}
+.A .stop{width:52px;height:52px;border-radius:50%;background:#ff4d4f;display:grid;place-items:center;box-shadow:0 4px 12px rgba(255,77,79,.4)}
+.A .stop::after{content:"";width:16px;height:16px;border-radius:3px;background:#fff}
+.A .timer{font-variant-numeric:tabular-nums;font-weight:600}
+
+/* ---------- B：Granola / Notion 風（極簡紙張、筆記為主） ---------- */
+.B{background:#fbfaf7;color:#2b2a27;font-family:Georgia,"Noto Serif TC","PMingLiU",serif}
+.B .top{padding:22px 24px 8px;display:flex;justify-content:space-between;align-items:center;font-family:system-ui,"Microsoft JhengHei",sans-serif;font-size:13px;color:#8a867d}
+.B .pill{background:#efece4;border-radius:999px;padding:4px 10px;display:flex;align-items:center;gap:6px}
+.B .dot{width:8px;height:8px;border-radius:50%;background:#22a06b;animation:p 1.4s infinite}
+@keyframes p{50%{opacity:.3}}
+.B .body{flex:1;overflow:auto;padding:4px 24px 20px}
+.B h3{font-size:26px;font-weight:600;line-height:1.3;margin:6px 0 4px}
+.B .meta{font-family:system-ui,"Microsoft JhengHei",sans-serif;font-size:12px;color:#8a867d;margin-bottom:18px}
+.B h4{font-family:system-ui,"Microsoft JhengHei",sans-serif;font-size:12px;letter-spacing:.08em;color:#8a867d;margin:18px 0 6px}
+.B ul{padding-left:18px}.B li{margin:5px 0}
+.B .todo{list-style:none;padding:0}.B .todo li::before{content:"☐ ";color:#8a867d}
+.B .ai{color:#7a5af8}
+.B .bar{padding:12px 20px 24px;display:flex;justify-content:center;font-family:system-ui,"Microsoft JhengHei",sans-serif}
+.B .btn{background:#2b2a27;color:#fbfaf7;border-radius:999px;padding:12px 22px;font-size:14px;display:flex;gap:10px;align-items:center}
+
+/* ---------- C：Plaud / Voice Memos 風（深色、大錄音鍵、波形） ---------- */
+.C{background:radial-gradient(120% 80% at 50% 0%,#2a1f4d 0%,#0c0b12 60%);color:#f2f0ff}
+.C .top{padding:22px 22px 0;display:flex;justify-content:space-between;font-size:13px;color:#a59fc4}
+.C .center{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:0 22px}
+.C .t{font-size:52px;font-weight:200;font-variant-numeric:tabular-nums;letter-spacing:2px}
+.C .wave{width:100%;height:90px;display:flex;align-items:center;gap:3px}
+.C .wave i{flex:1;border-radius:3px;background:linear-gradient(#b69cff,#6f4cff)}
+.C .cap{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:12px 14px;font-size:14px;color:#d8d3f5;width:100%}
+.C .cap small{color:#857fa8;display:block;margin-bottom:4px}
+.C .bar{padding:10px 0 34px;display:flex;justify-content:center;align-items:center;gap:36px}
+.C .side{width:48px;height:48px;border-radius:50%;background:rgba(255,255,255,.08);display:grid;place-items:center;font-size:18px}
+.C .rec{width:84px;height:84px;border-radius:50%;border:4px solid #fff;display:grid;place-items:center}
+.C .rec::after{content:"";width:30px;height:30px;border-radius:7px;background:#ff3b5c}
+.C .sheet{position:absolute;left:0;right:0;bottom:0;height:0}
+</style>
+</head>
+<body>
+<div class="switch">
+  <button data-s="a" class="on">A｜專業逐字稿（Otter 風）</button>
+  <button data-s="b">B｜極簡筆記（Granola / Notion 風）</button>
+  <button data-s="c">C｜沉浸錄音（Plaud / 語音備忘錄風）</button>
+</div>
+
+<!-- A -->
+<div class="stage on" id="a">
+  <div class="phone A">
+    <div class="top">
+      <small>10月7日 週三 · 14:00</small>
+      <h3>Q4 專案進度會議</h3>
+      <div class="tabs"><b>逐字稿</b><span>AI 重點</span><span>待辦 3</span></div>
+    </div>
+    <div class="body">
+      <div class="line"><div class="av" style="background:#1f5eff">王</div><div><div class="who">王小明<span>00:12</span></div>資料庫部分預計<span class="hl">下週上線</span>，備份測試也會同步進行。</div></div>
+      <div class="line"><div class="av" style="background:#12b76a">陳</div><div><div class="who">陳大華<span>00:41</span></div>檢測工具已提供資料給廠商，目前持續追蹤回覆。</div></div>
+      <div class="line"><div class="av" style="background:#f79009">林</div><div><div class="who">林經理<span>01:05</span></div>大家剩 2 到 3 項，<span class="hl">7 月前全部完成</span>沒問題吧？那就這樣<span class="hl">決定</span>。</div></div>
+      <div class="line"><div class="av" style="background:#1f5eff">王</div><div><div class="who">王小明<span>01:22</span></div><span class="live">好，我這邊會再確認一下排程…</span></div></div>
+    </div>
+    <div class="bar">
+      <span class="timer">01:24</span>
+      <div class="wave" id="wa"></div>
+      <div class="stop"></div>
+    </div>
+  </div>
+  <div class="note">
+    <h2>A｜專業逐字稿</h2>
+    <p>參考 Otter.ai、Fireflies。適合需要回頭核對「誰說了什麼」的正式會議。</p>
+    <ul>
+      <li>逐字稿／AI 重點／待辦三個分頁切換</li>
+      <li>每句附說話者頭像與時間</li>
+      <li>決議、期限關鍵字自動螢光標記</li>
+      <li>底部固定錄音列＋即時波形</li>
+    </ul>
+  </div>
+</div>
+
+<!-- B -->
+<div class="stage" id="b">
+  <div class="phone B">
+    <div class="top"><span>← 所有會議</span><span class="pill"><i class="dot"></i>聆聽中 12:08</span></div>
+    <div class="body">
+      <h3>Q4 專案進度會議</h3>
+      <div class="meta">10月7日 · 王小明、陳大華、林經理</div>
+      <h4>會議摘要 <span class="ai">✦ AI</span></h4>
+      <p>確認各成員剩餘開發項目，預計 7 月前全數完成；資料庫將於下週上線。</p>
+      <h4>決議事項</h4>
+      <ul><li>大量明細資料保留於地端運算，僅上傳彙整結果</li><li>下次會議 6/25（四）</li></ul>
+      <h4>待辦</h4>
+      <ul class="todo"><li><b>王小明</b>　資料庫上線與備份測試・下週</li><li><b>陳大華</b>　追蹤廠商回覆・未定</li><li><b>各單位</b>　6/24 中午前繳交週報</li></ul>
+    </div>
+    <div class="bar"><span class="btn">⏸ 暫停　·　✦ 產生紀錄</span></div>
+  </div>
+  <div class="note">
+    <h2>B｜極簡筆記</h2>
+    <p>參考 Granola、Notion AI 會議筆記。逐字稿退到背景，畫面直接就是「會議紀錄文件」。</p>
+    <ul>
+      <li>米白紙張感＋襯線標題，像在看正式文件</li>
+      <li>錄音狀態縮成右上角小膠囊</li>
+      <li>摘要／決議／待辦即時長出來</li>
+      <li>適合直接複製、匯出給主管</li>
+    </ul>
+  </div>
+</div>
+
+<!-- C -->
+<div class="stage" id="c">
+  <div class="phone C">
+    <div class="top"><span>☰</span><span>Q4 專案進度會議</span><span>⚙</span></div>
+    <div class="center">
+      <div class="t">12:08</div>
+      <div class="wave" id="wc"></div>
+      <div class="cap"><small>即時字幕</small>…檢測工具已提供資料給廠商，目前持續追蹤回覆。</div>
+    </div>
+    <div class="bar"><div class="side">🔖</div><div class="rec"></div><div class="side">✦</div></div>
+  </div>
+  <div class="note">
+    <h2>C｜沉浸錄音</h2>
+    <p>參考 Plaud Note、iPhone 語音備忘錄。手機單手操作優先，錄音時畫面乾淨不分心。</p>
+    <ul>
+      <li>深色漸層，會議室投影或夜間不刺眼</li>
+      <li>超大計時與錄音鍵，一眼確認在錄</li>
+      <li>只顯示最新一句即時字幕</li>
+      <li>🔖 標記重點時刻、✦ 一鍵 AI 整理</li>
+      <li>錄完往上滑出摘要卡片</li>
+    </ul>
+  </div>
+</div>
+
+<script>
+document.querySelectorAll('.switch button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('.switch button,.stage').forEach(x => x.classList.remove('on'));
+  b.classList.add('on'); document.getElementById(b.dataset.s).classList.add('on');
+});
+function wave(id, n, max) {
+  const el = document.getElementById(id);
+  el.innerHTML = Array.from({length:n}, () => '<i></i>').join('');
+  const bars = [...el.children];
+  setInterval(() => bars.forEach((b, i) => b.style.height = (12 + Math.abs(Math.sin(Date.now()/300 + i*.6)) * Math.random() * (max-12)) + 'px'), 120);
+}
+wave('wa', 26, 28); wave('wc', 40, 90);
+</script>
+</body>
+</html>
