@@ -23,17 +23,23 @@ input,select,textarea{font:inherit}
 .rtop input::placeholder{color:#857fa8}
 .ico{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;font-size:18px;color:#c9c3ec;flex:none}
 .ico:hover{background:rgba(255,255,255,.08)}
-.rmain{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;padding:0 20px;max-width:520px;width:100%;margin:0 auto}
-.timer{font-size:clamp(48px,14vw,68px);font-weight:200;font-variant-numeric:tabular-nums;letter-spacing:2px}
+#vRec{height:100dvh;min-height:0}
+.rmain{flex:1;min-height:0;display:flex;flex-direction:column;align-items:center;gap:10px;padding:0 16px;max-width:640px;width:100%;margin:0 auto}
+.timer{font-size:clamp(40px,11vw,56px);font-weight:200;font-variant-numeric:tabular-nums;letter-spacing:2px;line-height:1.1}
 .state{font-size:13px;color:#a59fc4;display:flex;align-items:center;gap:6px;min-height:20px}
 .state .dot{width:8px;height:8px;border-radius:50%;background:#ff3b5c;animation:blink 1.2s infinite}
 @keyframes blink{50%{opacity:.25}}
-.wave{width:100%;height:90px;display:flex;align-items:center;gap:3px}
+.wave{width:100%;height:48px;display:flex;align-items:center;gap:3px;flex:none}
 .wave i{flex:1;height:6px;border-radius:3px;background:linear-gradient(#b69cff,#6f4cff);transition:height .12s}
-.cap{width:100%;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:12px 14px;font-size:15px;color:#d8d3f5;min-height:84px}
-.cap small{display:flex;justify-content:space-between;color:#857fa8;margin-bottom:4px;font-size:12px}
+.cap{width:100%;flex:1;min-height:160px;display:flex;flex-direction:column;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:10px 4px 10px 14px;font-size:15px;color:#d8d3f5}
+.cap small{display:flex;justify-content:space-between;color:#857fa8;margin:0 10px 6px 0;font-size:12px}
 .cap small button{color:#b69cff;font-size:12px}
-.cap .interim{color:#8e88b3}
+.trlist{flex:1;overflow-y:auto;padding-right:10px}
+.trlist p{margin:0 0 8px;display:flex;gap:10px}
+.trlist p .ts{color:#857fa8;font-size:12px;font-variant-numeric:tabular-nums;padding-top:2px;flex:none}
+.trlist p.mark{color:#ffd27a}
+.trlist .empty{color:#857fa8}
+.cap .interim{color:#8e88b3;font-style:italic}
 .msg{font-size:13px;color:#ffb4c0;text-align:center;min-height:20px;padding:0 8px}
 .rbar{display:flex;justify-content:center;align-items:center;gap:40px;padding:12px 0 30px}
 .side{width:52px;height:52px;border-radius:50%;background:rgba(255,255,255,.08);display:grid;place-items:center;font-size:20px;position:relative}
@@ -106,8 +112,10 @@ summary{cursor:pointer;color:#8a867d;font-size:13px;font-family:system-ui,"Micro
     <div class="state" id="state">點下方按鈕開始錄音</div>
     <div class="wave" id="wave"></div>
     <div class="cap">
-      <small><span>即時字幕</span><button id="pasteBtn">貼上逐字稿</button></small>
-      <div id="capText">開始錄音後，最新的一句話會顯示在這裡。</div>
+      <small><span>逐字稿</span><button id="pasteBtn">編輯／貼上</button></small>
+      <div class="trlist" id="trList">
+        <p class="empty">開始錄音後，逐字稿會即時顯示在這裡。</p>
+      </div>
       <div class="interim" id="interim"></div>
     </div>
     <div class="msg" id="msg"></div>
@@ -147,7 +155,7 @@ summary{cursor:pointer;color:#8a867d;font-size:13px;font-family:system-ui,"Micro
     <div class="meta" id="nMeta"></div>
     <div class="doc" id="doc"><p class="empty">按下方「✦ AI 重點整理」產生會議紀錄。</p></div>
     <textarea class="raw" id="minutes" hidden></textarea>
-    <details id="trDetails">
+    <details id="trDetails" open>
       <summary>完整逐字稿（可編輯或貼上）</summary>
       <textarea id="transcript" placeholder="[00:00] 逐字稿會出現在這裡，也可以直接貼上現有的逐字稿。"></textarea>
     </details>
@@ -177,7 +185,7 @@ function show(v) {
   $('vRec').classList.toggle('on', v === 'rec');
   $('vNotes').classList.toggle('on', v === 'notes');
   document.querySelector('meta[name=theme-color]').content = v === 'rec' ? '#0c0b12' : '#fbfaf7';
-  if (v === 'notes') updateMeta();
+  if (v === 'notes') updateMeta(); else renderTr();
   scrollTo(0, 0);
 }
 $('toNotes').onclick = () => show('notes');
@@ -223,7 +231,7 @@ function startRec() {
     for (let i = e.resultIndex; i < e.results.length; i++) {
       const t = e.results[i][0].transcript.trim();
       if (e.results[i].isFinal) {
-        if (t) { $('transcript').value += `${stamp()} ${t}\n`; $('capText').textContent = t; }
+        if (t) { $('transcript').value += `${stamp()} ${t}\n`; renderTr(); }
       } else interim += t;
     }
     $('interim').textContent = interim;
@@ -268,8 +276,22 @@ function stopRec() {
 
 $('btnRec').onclick = () => recording ? stopRec() : startAll();
 
+// 錄音畫面的即時逐字稿（來源為紀錄頁的逐字稿欄位，兩邊同步）
+function renderTr() {
+  const box = $('trList');
+  const atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 40;
+  const lines = $('transcript').value.split('\n').filter(l => l.trim());
+  box.innerHTML = lines.length ? lines.map(l => {
+    const m = l.match(/^\[(\d+:\d+)\]\s*(.*)/);
+    const ts = m ? m[1] : '', txt = m ? m[2] : l;
+    return `<p${txt.includes('🔖') ? ' class="mark"' : ''}><span class="ts">${esc(ts)}</span><span>${esc(txt)}</span></p>`;
+  }).join('') : '<p class="empty">開始錄音後，逐字稿會即時顯示在這裡。</p>';
+  if (atBottom) box.scrollTop = box.scrollHeight;
+}
+$('transcript').addEventListener('input', renderTr);
+
 $('btnMark').onclick = () => {
-  $('transcript').value += `${stamp()} 🔖 重點標記\n`;
+  $('transcript').value += `${stamp()} 🔖 重點標記\n`; renderTr();
   $('flash').classList.add('on'); setTimeout(() => $('flash').classList.remove('on'), 900);
 };
 
@@ -284,7 +306,7 @@ $('btnClear').onclick = () => {
   if (!confirm('確定清除逐字稿與會議紀錄？')) return;
   $('transcript').value = ''; $('minutes').value = ''; render('');
   elapsed = 0; if (recording) startTime = Date.now();
-  $('timer').textContent = '00:00'; $('capText').textContent = '開始錄音後，最新的一句話會顯示在這裡。';
+  $('timer').textContent = '00:00'; renderTr();
   setPill('尚未整理');
 };
 
